@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Music Genre Classifier</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        text-align: center;
+        background-color: #f4f4f4;
+      }
+      .container {
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 30px;
+      }
+      .upload-area {
+        border: 3px dashed #ccc;
+        border-radius: 20px;
+        padding: 40px;
+        transition: all 0.3s ease;
+      }
+      .upload-area.dragging {
+        background-color: #f0f0f0;
+        border-color: #007bff;
+      }
+      .upload-area.dragover {
+        background-color: #e0e0e0;
+        border-color: #0056b3;
+      }
+      .file-preview {
+        margin: 15px 0;
+        font-weight: bold;
+      }
+      .buttons {
+        margin: 20px 0;
+      }
+      button {
+        margin: 0 10px;
+        padding: 10px 20px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+      #results {
+        margin-top: 20px;
+        font-size: 18px;
+        font-weight: bold;
+      }
+
+      /* Loading Spinner */
+      .spinner {
+        display: none;
+        width: 50px;
+        height: 50px;
+        border: 5px solid #f3f3f3;
+        border-top: 5px solid #007bff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 20px auto;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Confidence Bar */
+      .confidence-bar {
+        width: 100%;
+        background-color: #e0e0e0;
+        border-radius: 10px;
+        margin-top: 10px;
+        overflow: hidden;
+      }
+      .confidence-fill {
+        height: 10px;
+        background-color: #4caf50;
+        width: 0%;
+        transition: width 0.5s ease-in-out;
+      }
+
+      /* Result Animation */
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .result-container {
+        animation: fadeIn 0.5s ease-out;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Music Genre Classifier</h1>
+
+      <div class="upload-area" id="upload-area">
+        <input
+          type="file"
+          id="file-input"
+          accept=".wav"
+          style="display: none"
+        />
+        <div id="drop-text">
+          Drag and drop your .wav file here or click to select
+        </div>
+        <div id="file-preview" class="file-preview"></div>
+      </div>
+
+      <div class="buttons">
+        <button onclick="document.getElementById('file-input').click();">
+          Choose File
+        </button>
+        <button id="classify-svm" disabled>Classify with SVM</button>
+        <button id="classify-vgg" disabled>Classify with VGG</button>
+      </div>
+
+      <div class="spinner" id="loading-spinner"></div>
+
+      <div class="output-area" id="output-area" style="display: none">
+        <h2>Classification Results</h2>
+        <div id="results" class="result-container"></div>
+        <div class="confidence-bar">
+          <div id="confidence-fill" class="confidence-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+      $(document).ready(function () {
+        const uploadArea = $("#upload-area");
+        const fileInput = $("#file-input");
+        const dropText = $("#drop-text");
+        const filePreview = $("#file-preview");
+        const classifySVM = $("#classify-svm");
+        const classifyVGG = $("#classify-vgg");
+        const results = $("#results");
+        const outputArea = $("#output-area");
+        const loadingSpinner = $("#loading-spinner");
+        const confidenceFill = $("#confidence-fill");
+        let selectedFile = null;
+
+        // Prevent default drag behaviors
+        ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
+          uploadArea[0].addEventListener(eventName, preventDefaults, false);
+          document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        // Highlight drop zone when item is dragged over
+        ["dragenter", "dragover"].forEach((eventName) => {
+          uploadArea[0].addEventListener(eventName, highlight, false);
+        });
+
+        ["dragleave", "drop"].forEach((eventName) => {
+          uploadArea[0].addEventListener(eventName, unhighlight, false);
+        });
+
+        // Handle dropped files
+        uploadArea[0].addEventListener("drop", handleDrop, false);
+        fileInput.on("change", handleFiles);
+
+        function preventDefaults(e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+
+        function highlight() {
+          uploadArea.addClass("dragover");
+        }
+
+        function unhighlight() {
+          uploadArea.removeClass("dragover");
+        }
+
+        function handleDrop(e) {
+          const dt = e.dataTransfer;
+          const files = dt.files;
+          handleFiles(files);
+        }
+
+        function handleFiles(files) {
+          // Support both jQuery event and FileList
+          files = files.target ? files.target.files : files;
+
+          if (files.length === 0) return;
+
+          const file = files[0];
+
+          if (file.type !== "audio/wav") {
+            alert("Please upload a valid .wav file.");
+            resetUploadArea();
+            return;
+          }
+
+          selectedFile = file;
+          updateFilePreview(file);
+          enableClassificationButtons();
+        }
+
+        function updateFilePreview(file) {
+          dropText.hide();
+          filePreview.text(`Selected: ${file.name}`);
+          filePreview.show();
+        }
+
+        function enableClassificationButtons() {
+          classifySVM.prop("disabled", false);
+          classifyVGG.prop("disabled", false);
+        }
+
+        function resetUploadArea() {
+          selectedFile = null;
+          filePreview.text("");
+          dropText.show();
+          classifySVM.prop("disabled", true);
+          classifyVGG.prop("disabled", true);
+        }
+
+        function showLoading() {
+          loadingSpinner.show();
+          outputArea.hide();
+          confidenceFill.width("0%");
+        }
+
+        function hideLoading() {
+          loadingSpinner.hide();
+        }
+
+        function classify(apiEndpoint) {
+          if (!selectedFile) {
+            alert("No file selected!");
+            return;
+          }
+
+          // Show loading spinner
+          showLoading();
+
+          const formData = new FormData();
+          formData.append("file", selectedFile);
+
+          $.ajax({
+            url: apiEndpoint,
+            type: "POST",
+            data: formData,
+            contentType: false,
+            processData: false,
+            success: function (response) {
+              // Hide loading spinner
+              hideLoading();
+
+              // Display prediction
+              results.text(`Predicted Genre: ${response.prediction}`);
+
+              // Display confidence with animated bar
+              const confidence = response.confidence * 100;
+              confidenceFill.animate({ width: `${confidence}%` }, 1000);
+
+              // Show output area with fade in
+              outputArea.show();
+            },
+            error: function (xhr) {
+              // Hide loading spinner
+              hideLoading();
+
+              const errorMessage =
+                xhr.responseJSON && xhr.responseJSON.error
+                  ? `Error: ${xhr.responseJSON.error}`
+                  : "An error occurred during classification.";
+              results.text(errorMessage);
+              outputArea.show();
+            },
+          });
+        }
+
+        classifySVM.on("click", function () {
+          classify("http://172.17.0.2:5001/predict");
+        });
+
+        classifyVGG.on("click", function () {
+          classify("http://127.0.0.1:5000/predict");
+        });
+      });
+    </script>
+  </body>
+</html>
