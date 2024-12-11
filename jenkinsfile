@@ -3,13 +3,14 @@ pipeline {
 
     environment {
         DOCKER_CREDENTIALS_ID = 'dockerhub-credentials' // Docker Hub credentials ID
-        GITHUB_CREDENTIALS_ID = 'github-token'          // GitHub token credentials ID
+        GITHUB_CREDENTIALS_ID = 'github-access-token'          // GitHub token credentials ID
         DOCKERHUB_REPO = 'ahmedamamou'      
     }
 
     stages {
         stage('Checkout Code') {
             steps {
+                echo 'Starting Checkout Code stage...'
                 // Clone the GitHub repository
                 checkout([
                     $class: 'GitSCM',
@@ -19,6 +20,7 @@ pipeline {
                         credentialsId: "${GITHUB_CREDENTIALS_ID}" // GitHub token for private repos
                     ]]
                 ])
+                echo 'Checkout Code stage completed.'
             }
         }
 
