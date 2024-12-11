@@ -3,7 +3,6 @@ pipeline {
 
     environment {
         DOCKER_CREDENTIALS_ID = 'dockerhub-credentials' // Docker Hub credentials ID
-        GITHUB_CREDENTIALS_ID = 'github-access-token'          // GitHub token credentials ID
         DOCKERHUB_REPO = 'ahmedamamou'      
     }
 
@@ -16,8 +15,7 @@ pipeline {
                     $class: 'GitSCM',
                     branches: [[name: '*/main']], // Replace 'main' with the branch name you want to build
                     userRemoteConfigs: [[
-                        url: 'https://github.com/Ahmed-Amamou/Pipeline-Music-Classification.git', // Replace with your repo URL
-                        credentialsId: "${GITHUB_CREDENTIALS_ID}" // GitHub token for private repos
+                        url: 'https://github.com/Ahmed-Amamou/Pipeline-Music-Classification.git' // Replace with your repo URL
                     ]]
                 ])
                 echo 'Checkout Code stage completed.'
