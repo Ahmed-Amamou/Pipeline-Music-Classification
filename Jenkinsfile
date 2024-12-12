@@ -27,21 +27,21 @@ pipeline {
                 stage('Build Frontend Image') {
                     steps {
                         script {
-                            sh 'docker build -t ${DOCKERHUB_REPO}/frontend ./frontend'
+                            sh 'sudo docker build -t ${DOCKERHUB_REPO}/frontend ./frontend'
                         }
                     }
                 }
                 stage('Build VGG19 Model Image') {
                     steps {
                         script {
-                            sh 'docker build -t ${DOCKERHUB_REPO}/vgg_model ./vgg_model'
+                            sh 'sudo docker build -t ${DOCKERHUB_REPO}/vgg_model ./vgg_model'
                         }
                     }
                 }
                 stage('Build SVM Model Image') {
                     steps {
                         script {
-                            sh 'docker build -t ${DOCKERHUB_REPO}/svm_model ./svm_model'
+                            sh 'sudo docker build -t ${DOCKERHUB_REPO}/svm_model ./svm_model'
                         }
                     }
                 }
